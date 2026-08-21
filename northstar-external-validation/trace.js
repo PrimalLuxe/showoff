@@ -15,6 +15,11 @@ const BLOCKED_KEY_PATTERNS = [
   /cookie/i,
 ];
 
+const SAFE_METADATA_KEYS = new Set([
+  'known_resolution_withheld',
+  'sanitized_by_submitter',
+]);
+
 const BLOCKED_VALUE_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{16,}\b/,
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/,
@@ -32,7 +37,7 @@ function walk(value, path = '$', findings = []) {
   }
   if (value && typeof value === 'object') {
     for (const [key, child] of Object.entries(value)) {
-      if (BLOCKED_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
+      if (!SAFE_METADATA_KEYS.has(key) && BLOCKED_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
         findings.push(`${path}.${key}`);
       }
       walk(child, `${path}.${key}`, findings);
