@@ -1,15 +1,20 @@
-import { buildTrace, parseEvents } from './trace.js';
+import { buildTrace, hashTrace, parseEvents } from './trace.js';
 
 const form = document.querySelector('#trace-form');
+const submitButton = form.querySelector('button[type="submit"]');
 const errorBox = document.querySelector('#form-error');
 const successBox = document.querySelector('#form-success');
 const panel = document.querySelector('#export-panel');
 const output = document.querySelector('#export-json');
 const sizeBadge = document.querySelector('#export-size');
+const digestOutput = document.querySelector('#trace-digest');
 const downloadButton = document.querySelector('#download-btn');
 const copyButton = document.querySelector('#copy-btn');
+const copyDigestButton = document.querySelector('#copy-digest-btn');
 
 let lastExport = '';
+let lastDigest = '';
+let generation = 0;
 
 function setStatus(type, message) {
   errorBox.hidden = type !== 'error';
@@ -25,12 +30,36 @@ function clearStatus() {
   successBox.textContent = '';
 }
 
-form.addEventListener('submit', (event) => {
+async function copyText(value, button, successLabel) {
+  if (!value) return;
+  const originalLabel = button.textContent;
+  try {
+    await navigator.clipboard.writeText(value);
+    button.textContent = successLabel;
+    window.setTimeout(() => { button.textContent = originalLabel; }, 1600);
+  } catch {
+    if (value === lastExport) {
+      output.focus();
+      output.select();
+      setStatus('error', 'Clipboard access was blocked. The JSON is selected for manual copy.');
+    } else {
+      digestOutput.focus();
+      digestOutput.select();
+      setStatus('error', 'Clipboard access was blocked. The SHA-256 digest is selected for manual copy.');
+    }
+  }
+}
+
+form.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearStatus();
   panel.hidden = true;
 
   if (!form.reportValidity()) return;
+
+  const requestGeneration = ++generation;
+  submitButton.disabled = true;
+  submitButton.setAttribute('aria-busy', 'true');
 
   try {
     const data = new FormData(form);
@@ -41,23 +70,44 @@ form.addEventListener('submit', (event) => {
       observedSymptom: String(data.get('observed_symptom') || ''),
       events,
     });
+    const digest = await hashTrace(result.encoded);
+    if (requestGeneration !== generation) return;
+
     lastExport = result.encoded;
+    lastDigest = digest;
     output.value = result.encoded;
+    digestOutput.value = `sha256:${digest}`;
     sizeBadge.textContent = `${(result.bytes / 1024).toFixed(1)} KB`;
     panel.hidden = false;
-    setStatus('success', 'Trace passed local leakage and size checks. Review the export before sharing.');
+    setStatus('success', 'Trace passed local leakage and size checks and was SHA-256 sealed. Review the export before sharing.');
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
-    setStatus('error', error instanceof Error ? error.message : 'Unable to validate trace.');
+    if (requestGeneration === generation) {
+      lastExport = '';
+      lastDigest = '';
+      output.value = '';
+      digestOutput.value = '';
+      setStatus('error', error instanceof Error ? error.message : 'Unable to validate trace.');
+    }
+  } finally {
+    if (requestGeneration === generation) {
+      submitButton.disabled = false;
+      submitButton.removeAttribute('aria-busy');
+    }
   }
 });
 
 form.addEventListener('reset', () => {
+  generation += 1;
   clearStatus();
   panel.hidden = true;
   output.value = '';
+  digestOutput.value = '';
   lastExport = '';
+  lastDigest = '';
   sizeBadge.textContent = '';
+  submitButton.disabled = false;
+  submitButton.removeAttribute('aria-busy');
 });
 
 downloadButton.addEventListener('click', () => {
@@ -73,15 +123,5 @@ downloadButton.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-copyButton.addEventListener('click', async () => {
-  if (!lastExport) return;
-  try {
-    await navigator.clipboard.writeText(lastExport);
-    copyButton.textContent = 'Copied';
-    window.setTimeout(() => { copyButton.textContent = 'Copy JSON'; }, 1600);
-  } catch {
-    output.focus();
-    output.select();
-    setStatus('error', 'Clipboard access was blocked. The JSON is selected for manual copy.');
-  }
-});
+copyButton.addEventListener('click', () => copyText(lastExport, copyButton, 'Copied'));
+copyDigestButton.addEventListener('click', () => copyText(`sha256:${lastDigest}`, copyDigestButton, 'Digest copied'));
