@@ -1,0 +1,25 @@
+name: NORTHSTAR external validation CI
+
+on:
+  push:
+    branches: [northstar-external-validation]
+  pull_request:
+    paths:
+      - 'northstar-external-validation/**'
+      - '.github/workflows/northstar-external-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: northstar-external-validation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm test
