@@ -1,0 +1,46 @@
+name: NORTHSTAR external validation deploy
+
+on:
+  push:
+    branches: [northstar-external-validation]
+    paths:
+      - 'northstar-external-validation/**'
+      - '.github/workflows/northstar-pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: northstar-external-validation-pages
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: northstar-external-validation
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run release tests
+        run: npm test
+      - name: Upload verified static site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: northstar-external-validation
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy verified artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
