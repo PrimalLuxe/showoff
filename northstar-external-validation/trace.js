@@ -15,10 +15,17 @@ const FAILURE_CATEGORIES = new Set([
 
 const BLOCKED_KEY_PATTERNS = [
   /root[_-]?cause/i,
+  /(?:^|[_-])cause(?:$|[_-])/i,
   /resolution/i,
   /postmortem/i,
-  /known[_-]?(cause|answer|fix)/i,
+  /known[_-]?(cause|answer|fix|diagnosis)/i,
   /final[_-]?fix/i,
+  /(?:^|[_-])diagnosis(?:$|[_-])/i,
+  /(?:^|[_-])solution(?:$|[_-])/i,
+  /(?:^|[_-])remediation(?:$|[_-])/i,
+  /(?:^|[_-])mitigation(?:$|[_-])/i,
+  /(?:^|[_-])workaround(?:$|[_-])/i,
+  /(?:^|[_-])culprit(?:$|[_-])/i,
   /password/i,
   /secret/i,
   /api[_-]?key/i,
@@ -44,10 +51,13 @@ const BLOCKED_VALUE_PATTERNS = [
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\broot cause\b/i,
+  /\bknown diagnosis\b/i,
   /\bresolved by\b/i,
   /\bthe fix (?:was|is)\b/i,
   /\bwe fixed (?:it|this) by\b/i,
   /\bpostmortem\b/i,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /\b\d{3}-\d{2}-\d{4}\b/,
 ];
 
 function byteSize(value) {
@@ -117,7 +127,7 @@ export function parseEvents(raw) {
   if (!Array.isArray(parsed)) throw new Error('Trace events must be a JSON array.');
   if (parsed.length === 0) throw new Error('Include at least one sanitized trace event.');
   if (parsed.length > MAX_EVENTS) throw new Error(`Trace contains too many events; reduce it to ${MAX_EVENTS.toLocaleString()} events or fewer.`);
-  assertNoProhibitedData(parsed, 'Potential ground truth or secret detected at');
+  assertNoProhibitedData(parsed, 'Potential ground truth, personal data, or secret detected at');
   return parsed;
 }
 
@@ -132,7 +142,7 @@ export function buildTrace({ projectLabel, failureCategory, observedSymptom, eve
   if (!Array.isArray(events) || events.length === 0) throw new Error('Include at least one sanitized trace event.');
   if (events.length > MAX_EVENTS) throw new Error(`Trace contains too many events; reduce it to ${MAX_EVENTS.toLocaleString()} events or fewer.`);
 
-  assertNoProhibitedData({ project_label: label, observed_symptom: symptom, trace_events: events }, 'Potential ground truth or secret detected outside trace events at');
+  assertNoProhibitedData({ project_label: label, observed_symptom: symptom, trace_events: events }, 'Potential ground truth, personal data, or secret detected outside trace events at');
 
   const trace = {
     schema_version: '1.0',
@@ -164,4 +174,11 @@ export function validateFinalTrace(trace) {
   const encoded = JSON.stringify(trace);
   if (byteSize(encoded) > MAX_BYTES) throw new Error('Trace exceeds the 64 KB limit.');
   return true;
+}
+
+export async function hashTrace(encoded) {
+  if (typeof encoded !== 'string' || !encoded) throw new Error('Trace export is required before hashing.');
+  if (!globalThis.crypto?.subtle) throw new Error('SHA-256 hashing is unavailable in this browser.');
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(encoded));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
