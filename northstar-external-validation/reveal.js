@@ -6,6 +6,17 @@ const MAX_CAUSE_LENGTH = 3000;
 const MAX_NOTES_LENGTH = 3000;
 const MAX_CONTRIBUTING_CAUSES = 20;
 const MAX_MINUTES_SAVED = 10080;
+const SENSITIVE_VALUE_PATTERNS = [
+  /\bsk-[A-Za-z0-9_-]{16,}\b/,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{16,}\b/i,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /\b\d{3}-\d{2}-\d{4}\b/,
+];
 
 function normalizeDigest(digest) {
   const value = String(digest || '').trim().replace(/^sha256:/i, '');
@@ -19,10 +30,17 @@ function normalizeCaseId(caseId) {
   return value;
 }
 
+function assertSanitizedText(text, label) {
+  if (SENSITIVE_VALUE_PATTERNS.some((pattern) => pattern.test(text))) {
+    throw new Error(`${label} appears to contain a secret, credential, email address, or US SSN. Sanitize it before revealing ground truth.`);
+  }
+}
+
 function boundedText(value, label, maxLength, required = false) {
   const text = String(value || '').trim();
   if (required && !text) throw new Error(`${label} is required.`);
   if (text.length > maxLength) throw new Error(`${label} exceeds the ${maxLength.toLocaleString()} character limit.`);
+  if (text) assertSanitizedText(text, label);
   return text;
 }
 
@@ -32,8 +50,7 @@ function normalizeContributingCauses(value) {
     : String(value || '').split('\n');
   const causes = values.map((item) => String(item || '').trim()).filter(Boolean);
   if (causes.length > MAX_CONTRIBUTING_CAUSES) throw new Error(`Contributing causes are limited to ${MAX_CONTRIBUTING_CAUSES}.`);
-  for (const cause of causes) boundedText(cause, 'Each contributing cause', 1000, true);
-  return causes;
+  return causes.map((cause) => boundedText(cause, 'Each contributing cause', 1000, true));
 }
 
 function normalizeMinutesSaved(value) {
@@ -49,6 +66,7 @@ export function buildGroundTruthRecord({
   caseId,
   digest,
   sealedPredictionReceived,
+  sanitizedBySubmitter,
   originatingCause,
   contributingCauses,
   correctness,
@@ -59,6 +77,9 @@ export function buildGroundTruthRecord({
 }) {
   if (sealedPredictionReceived !== true) {
     throw new Error('Do not reveal ground truth until NORTHSTAR has returned a sealed prediction for this case.');
+  }
+  if (sanitizedBySubmitter !== true) {
+    throw new Error('Confirm the ground-truth reveal has been sanitized before sharing it.');
   }
 
   const normalizedDigest = normalizeDigest(digest);
@@ -79,6 +100,7 @@ export function buildGroundTruthRecord({
     case_id: normalizedCaseId,
     trace_sha256: `sha256:${normalizedDigest}`,
     sealed_prediction_received: true,
+    sanitized_by_submitter: true,
     actual_originating_cause: boundedText(originatingCause, 'Actual originating cause', MAX_CAUSE_LENGTH, true),
     actual_contributing_causes: normalizeContributingCauses(contributingCauses),
     prediction_result: correctness,
@@ -98,15 +120,13 @@ export function encodeGroundTruthRecord(record) {
 }
 
 export function buildRevealMailto(record) {
-  const encoded = encodeGroundTruthRecord(record);
   const subject = `NORTHSTAR ground truth ${record.case_id}`;
   const body = [
     `NORTHSTAR ground-truth reveal for ${record.case_id}`,
     `Trace: ${record.trace_sha256}`,
     '',
-    'This reveal is being sent only after the sealed prediction was received.',
-    '',
-    encoded,
+    'The sealed prediction for this exact case was received before ground truth was revealed.',
+    'Attach the downloaded northstar_ground_truth.json or paste the locally generated record into this message.',
   ].join('\n');
   return `mailto:${SUBMISSION_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
