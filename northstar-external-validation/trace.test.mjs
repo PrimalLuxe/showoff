@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_BYTES, MAX_DEPTH, buildTrace, parseEvents, validateFinalTrace } from './trace.js';
+import { MAX_BYTES, MAX_DEPTH, buildTrace, hashTrace, parseEvents, validateFinalTrace } from './trace.js';
 
 test('accepts a sanitized event array', () => {
   const events = parseEvents('[{"stage":"retrieve","source_id":"doc_17","rank":1}]');
@@ -13,18 +13,26 @@ test('rejects malformed JSON and non-array payloads', () => {
 });
 
 test('rejects ground-truth leakage by key or phrase', () => {
-  assert.throws(() => parseEvents('[{"stage":"retrieve","root_cause":"wrong index"}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"resolution":"changed embedding model"}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"nested":{"final_fix":"reran indexing"}}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"note":"The root cause was stale embeddings"}]'), /Potential ground truth or secret/);
+  assert.throws(() => parseEvents('[{"stage":"retrieve","root_cause":"wrong index"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"resolution":"changed embedding model"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"nested":{"final_fix":"reran indexing"}}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"note":"The root cause was stale embeddings"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"diagnosis":"stale index"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"remediation":"rebuild index"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"workaround":"disable reranking"}]'), /Potential ground truth/);
 });
 
 test('rejects common credential patterns', () => {
-  assert.throws(() => parseEvents('[{"note":"sk-abcdefghijklmnopqrstuvwxyz123456"}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"api_key":"redacted"}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"note":"Bearer abcdefghijklmnopqrstuvwxyz123456"}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"note":"AKIAABCDEFGHIJKLMNOP"}]'), /Potential ground truth or secret/);
-  assert.throws(() => parseEvents('[{"note":"eyJabcdefghijk.abcdefghijk.abcdefghijk"}]'), /Potential ground truth or secret/);
+  assert.throws(() => parseEvents('[{"note":"sk-abcdefghijklmnopqrstuvwxyz123456"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"api_key":"redacted"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"note":"Bearer abcdefghijklmnopqrstuvwxyz123456"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"note":"AKIAABCDEFGHIJKLMNOP"}]'), /Potential ground truth/);
+  assert.throws(() => parseEvents('[{"note":"eyJabcdefghijk.abcdefghijk.abcdefghijk"}]'), /Potential ground truth/);
+});
+
+test('rejects common personal identifier patterns', () => {
+  assert.throws(() => parseEvents('[{"user":"engineer@example.com"}]'), /personal data/);
+  assert.throws(() => parseEvents('[{"customer_id":"123-45-6789"}]'), /personal data/);
 });
 
 test('rejects leakage in project label or observed symptom', () => {
@@ -98,4 +106,12 @@ test('enforces final payload limit', () => {
     observedSymptom: 'visible symptom',
     events: [{ stage: 'generate', content: huge }],
   }), /64 KB limit/);
+});
+
+test('SHA-256 sealing is deterministic and sensitive to byte changes', async () => {
+  assert.equal(
+    await hashTrace('abc'),
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+  );
+  assert.notEqual(await hashTrace('abc'), await hashTrace('abc\n'));
 });
