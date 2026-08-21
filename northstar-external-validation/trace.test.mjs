@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_BYTES, buildTrace, parseEvents, validateFinalTrace } from './trace.js';
+import { MAX_BYTES, MAX_DEPTH, buildTrace, parseEvents, validateFinalTrace } from './trace.js';
 
 test('accepts a sanitized event array', () => {
   const events = parseEvents('[{"stage":"retrieve","source_id":"doc_17","rank":1}]');
@@ -22,6 +22,9 @@ test('rejects ground-truth leakage by key or phrase', () => {
 test('rejects common credential patterns', () => {
   assert.throws(() => parseEvents('[{"note":"sk-abcdefghijklmnopqrstuvwxyz123456"}]'), /Potential ground truth or secret/);
   assert.throws(() => parseEvents('[{"api_key":"redacted"}]'), /Potential ground truth or secret/);
+  assert.throws(() => parseEvents('[{"note":"Bearer abcdefghijklmnopqrstuvwxyz123456"}]'), /Potential ground truth or secret/);
+  assert.throws(() => parseEvents('[{"note":"AKIAABCDEFGHIJKLMNOP"}]'), /Potential ground truth or secret/);
+  assert.throws(() => parseEvents('[{"note":"eyJabcdefghijk.abcdefghijk.abcdefghijk"}]'), /Potential ground truth or secret/);
 });
 
 test('rejects leakage in project label or observed symptom', () => {
@@ -46,11 +49,20 @@ test('rejects empty, oversized, and excessive event input', () => {
   assert.throws(() => parseEvents(JSON.stringify([{ content: 'x'.repeat(MAX_BYTES) }])), /Raw trace input exceeds/);
 });
 
-test('handles deeply nested input without recursive stack overflow', () => {
+test('rejects pathological nesting before downstream processing', () => {
   let node = { stage: 'leaf' };
-  for (let i = 0; i < 1500; i += 1) node = { child: node };
+  for (let i = 0; i < MAX_DEPTH + 2; i += 1) node = { child: node };
   const raw = JSON.stringify([node]);
-  assert.equal(parseEvents(raw).length, 1);
+  assert.throws(() => parseEvents(raw), /maximum nesting depth/);
+});
+
+test('enforces failure-category allowlist', () => {
+  assert.throws(() => buildTrace({
+    projectLabel: 'prod',
+    failureCategory: 'arbitrary_category',
+    observedSymptom: 'Visible symptom.',
+    events: [{ stage: 'retrieve' }],
+  }), /category is invalid/);
 });
 
 test('builds the canonical export with blind-integrity flags', () => {
@@ -66,6 +78,16 @@ test('builds the canonical export with blind-integrity flags', () => {
   assert.ok(encoded.includes('trace_events'));
   assert.ok(bytes < MAX_BYTES);
   assert.equal(validateFinalTrace(trace), true);
+});
+
+test('validateFinalTrace rejects integrity flag tampering', () => {
+  const { trace } = buildTrace({
+    projectLabel: 'retrieval-prod',
+    failureCategory: 'citation',
+    observedSymptom: 'Citation pointed at an unsupported source.',
+    events: [{ stage: 'retrieve', source_id: 'doc_17' }],
+  });
+  assert.throws(() => validateFinalTrace({ ...trace, provenance: { ...trace.provenance, known_resolution_withheld: false } }), /must remain withheld/);
 });
 
 test('enforces final payload limit', () => {
