@@ -14,6 +14,12 @@ test('rejects malformed JSON and non-array payloads', () => {
   assert.throws(() => parseEvents('{"stage":"retrieve"}'), /JSON array/);
 });
 
+test('rejects non-object trace events', () => {
+  assert.throws(() => parseEvents('["retrieve"]'), /Each trace event must be a JSON object/);
+  assert.throws(() => parseEvents('[null]'), /Each trace event must be a JSON object/);
+  assert.throws(() => parseEvents('[[{"stage":"retrieve"}]]'), /Each trace event must be a JSON object/);
+});
+
 test('rejects ground-truth leakage by key or phrase', () => {
   assert.throws(() => parseEvents('[{"stage":"retrieve","root_cause":"wrong index"}]'), /Potential ground truth/);
   assert.throws(() => parseEvents('[{"resolution":"changed embedding model"}]'), /Potential ground truth/);
@@ -98,6 +104,31 @@ test('validateFinalTrace rejects integrity flag tampering', () => {
     events: [{ stage: 'retrieve', source_id: 'doc_17' }],
   });
   assert.throws(() => validateFinalTrace({ ...trace, provenance: { ...trace.provenance, known_resolution_withheld: false } }), /must remain withheld/);
+});
+
+test('validateFinalTrace rejects schema-shape extension and missing canonical fields', () => {
+  const { trace } = buildTrace({
+    projectLabel: 'retrieval-prod',
+    failureCategory: 'citation',
+    observedSymptom: 'Citation pointed at an unsupported source.',
+    events: [{ stage: 'retrieve', source_id: 'doc_17' }],
+  });
+  assert.throws(() => validateFinalTrace({ ...trace, extra_metadata: 'unexpected' }), /unsupported field/);
+  assert.throws(() => validateFinalTrace({ ...trace, provenance: { ...trace.provenance, experiment_id: 'x' } }), /unsupported field/);
+  const { observed_symptom: _removed, ...missingSymptom } = trace;
+  assert.throws(() => validateFinalTrace(missingSymptom), /missing required field/);
+});
+
+test('validateFinalTrace enforces canonical string bounds and event object shape', () => {
+  const { trace } = buildTrace({
+    projectLabel: 'retrieval-prod',
+    failureCategory: 'citation',
+    observedSymptom: 'Citation pointed at an unsupported source.',
+    events: [{ stage: 'retrieve', source_id: 'doc_17' }],
+  });
+  assert.throws(() => validateFinalTrace({ ...trace, observed_symptom: 42 }), /Observed symptom is required/);
+  assert.throws(() => validateFinalTrace({ ...trace, provenance: { ...trace.provenance, project_label: '' } }), /Project or system label is required/);
+  assert.throws(() => validateFinalTrace({ ...trace, trace_events: ['retrieve'] }), /Each trace event must be a JSON object/);
 });
 
 test('enforces final payload limit', () => {
