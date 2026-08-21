@@ -1,4 +1,5 @@
 import { buildTrace, hashTrace, parseEvents } from './trace.js';
+import { buildSubmissionMailto, buildSubmissionNote } from './submission.js';
 
 const form = document.querySelector('#trace-form');
 const submitButton = form.querySelector('button[type="submit"]');
@@ -8,9 +9,12 @@ const panel = document.querySelector('#export-panel');
 const output = document.querySelector('#export-json');
 const sizeBadge = document.querySelector('#export-size');
 const digestOutput = document.querySelector('#trace-digest');
+const submissionNote = document.querySelector('#submission-note');
 const downloadButton = document.querySelector('#download-btn');
 const copyButton = document.querySelector('#copy-btn');
 const copyDigestButton = document.querySelector('#copy-digest-btn');
+const copySubmissionButton = document.querySelector('#copy-submission-btn');
+const emailSubmissionLink = document.querySelector('#email-submission-link');
 const shareButton = document.querySelector('#share-btn');
 
 let lastExport = '';
@@ -31,6 +35,12 @@ function clearStatus() {
   successBox.textContent = '';
 }
 
+function clearPreparedSubmission() {
+  submissionNote.value = '';
+  emailSubmissionLink.removeAttribute('href');
+  emailSubmissionLink.setAttribute('aria-disabled', 'true');
+}
+
 function makeTraceFile() {
   return new File([lastExport], 'northstar_trace.json', { type: 'application/json' });
 }
@@ -47,7 +57,7 @@ function refreshShareAvailability() {
   }
 }
 
-async function copyText(value, button, successLabel) {
+async function copyText(value, button, successLabel, fallbackElement, fallbackMessage) {
   if (!value) return;
   const originalLabel = button.textContent;
   try {
@@ -55,15 +65,11 @@ async function copyText(value, button, successLabel) {
     button.textContent = successLabel;
     window.setTimeout(() => { button.textContent = originalLabel; }, 1600);
   } catch {
-    if (value === lastExport) {
-      output.focus();
-      output.select();
-      setStatus('error', 'Clipboard access was blocked. The JSON is selected for manual copy.');
-    } else {
-      digestOutput.focus();
-      digestOutput.select();
-      setStatus('error', 'Clipboard access was blocked. The SHA-256 digest is selected for manual copy.');
+    if (fallbackElement) {
+      fallbackElement.focus();
+      fallbackElement.select();
     }
+    setStatus('error', fallbackMessage);
   }
 }
 
@@ -72,6 +78,7 @@ form.addEventListener('submit', async (event) => {
   clearStatus();
   panel.hidden = true;
   shareButton.hidden = true;
+  clearPreparedSubmission();
 
   if (!form.reportValidity()) return;
 
@@ -95,10 +102,13 @@ form.addEventListener('submit', async (event) => {
     lastDigest = digest;
     output.value = result.encoded;
     digestOutput.value = `sha256:${digest}`;
+    submissionNote.value = buildSubmissionNote(digest);
+    emailSubmissionLink.href = buildSubmissionMailto(digest);
+    emailSubmissionLink.removeAttribute('aria-disabled');
     sizeBadge.textContent = `${(result.bytes / 1024).toFixed(1)} KB`;
     panel.hidden = false;
     refreshShareAvailability();
-    setStatus('success', 'Trace passed local leakage and size checks and was SHA-256 sealed. Review the export before sharing.');
+    setStatus('success', 'Trace passed local leakage and size checks and was SHA-256 sealed. Review the export, then send only the sanitized artifact and digest.');
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
     if (requestGeneration === generation) {
@@ -107,6 +117,7 @@ form.addEventListener('submit', async (event) => {
       output.value = '';
       digestOutput.value = '';
       shareButton.hidden = true;
+      clearPreparedSubmission();
       setStatus('error', error instanceof Error ? error.message : 'Unable to validate trace.');
     }
   } finally {
@@ -127,6 +138,7 @@ form.addEventListener('reset', () => {
   lastDigest = '';
   sizeBadge.textContent = '';
   shareButton.hidden = true;
+  clearPreparedSubmission();
   submitButton.disabled = false;
   submitButton.removeAttribute('aria-busy');
 });
@@ -144,20 +156,48 @@ downloadButton.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-copyButton.addEventListener('click', () => copyText(lastExport, copyButton, 'Copied'));
-copyDigestButton.addEventListener('click', () => copyText(`sha256:${lastDigest}`, copyDigestButton, 'Digest copied'));
+copyButton.addEventListener('click', () => copyText(
+  lastExport,
+  copyButton,
+  'Copied',
+  output,
+  'Clipboard access was blocked. The JSON is selected for manual copy.',
+));
+
+copyDigestButton.addEventListener('click', () => copyText(
+  `sha256:${lastDigest}`,
+  copyDigestButton,
+  'Digest copied',
+  digestOutput,
+  'Clipboard access was blocked. The SHA-256 digest is selected for manual copy.',
+));
+
+copySubmissionButton.addEventListener('click', () => copyText(
+  submissionNote.value,
+  copySubmissionButton,
+  'Submission note copied',
+  submissionNote,
+  'Clipboard access was blocked. The submission note is selected for manual copy.',
+));
+
+emailSubmissionLink.addEventListener('click', (event) => {
+  if (!lastExport || !lastDigest || !emailSubmissionLink.getAttribute('href')) {
+    event.preventDefault();
+    setStatus('error', 'Validate and seal a trace before preparing the submission email.');
+  }
+});
 
 shareButton.addEventListener('click', async () => {
   if (!lastExport || !lastDigest) return;
   try {
     await navigator.share({
       title: 'NORTHSTAR blind trace validation',
-      text: `Sanitized trace for blind validation\nsha256:${lastDigest}`,
+      text: `${buildSubmissionNote(lastDigest)}\n\nKeep the known answer separate until NORTHSTAR's prediction has been sealed.`,
       files: [makeTraceFile()],
     });
     setStatus('success', 'Trace shared through your device share sheet. Keep the known diagnosis separate until the prediction is sealed.');
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return;
-    setStatus('error', 'The device share sheet could not share this file. Download the JSON and send it through your preferred contact route instead.');
+    setStatus('error', 'The device share sheet could not share this file. Download the JSON and use the prepared submission note instead.');
   }
 });
