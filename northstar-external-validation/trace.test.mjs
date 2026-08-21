@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { MAX_BYTES, MAX_DEPTH, buildTrace, hashTrace, parseEvents, validateFinalTrace } from './trace.js';
+import { SUBMISSION_EMAIL, buildSubmissionMailto, buildSubmissionNote } from './submission.js';
 
 test('accepts a sanitized event array', () => {
   const events = parseEvents('[{"stage":"retrieve","source_id":"doc_17","rank":1}]');
@@ -117,12 +118,37 @@ test('SHA-256 sealing is deterministic and sensitive to byte changes', async () 
   assert.notEqual(await hashTrace('abc'), await hashTrace('abc\n'));
 });
 
+test('blind submission note carries exact digest without ground truth', () => {
+  const digest = 'a'.repeat(64);
+  const note = buildSubmissionNote(digest);
+  assert.match(note, new RegExp(`sha256:${digest}`));
+  assert.match(note, /known diagnosis.*intentionally withheld/i);
+  assert.doesNotMatch(note, /actual root cause|final answer:/i);
+});
+
+test('blind submission mailto is deterministic and requires a valid digest', () => {
+  const digest = 'B'.repeat(64);
+  const href = buildSubmissionMailto(`sha256:${digest}`);
+  assert.ok(href.startsWith(`mailto:${SUBMISSION_EMAIL}?`));
+  assert.match(decodeURIComponent(href), /Attach the sanitized northstar_trace\.json file/);
+  assert.match(decodeURIComponent(href), new RegExp(`sha256:${digest.toLowerCase()}`));
+  assert.throws(() => buildSubmissionMailto('not-a-digest'), /valid SHA-256/);
+});
+
 test('privacy page policy blocks outbound network connections during trace preparation', async () => {
   const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
   assert.match(html, /Content-Security-Policy/);
   assert.match(html, /connect-src 'none'/);
   assert.match(html, /default-src 'self'/);
   assert.match(html, /name="referrer" content="no-referrer"/);
+});
+
+test('submission UI states local-only mail handoff semantics', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  assert.match(html, /Send the artifact without sending the answer/);
+  assert.match(html, /opens your own mail client; this page does not upload the trace/);
+  assert.match(html, /Attach the downloaded <code>northstar_trace\.json<\/code>/);
+  assert.match(html, /id="email-submission-link"/);
 });
 
 test('hidden controls remain hidden even when button display styles are applied', async () => {
