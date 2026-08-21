@@ -24,6 +24,8 @@ jobs:
         working-directory: northstar-external-validation
     steps:
       - uses: actions/checkout@v6
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
