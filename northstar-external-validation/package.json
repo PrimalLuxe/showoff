@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --check app.js && node --check trace.js && node --check submission.js && node --test trace.test.mjs"
+    "test": "node --check app.js && node --check trace.js && node --check submission.js && node --test trace.test.mjs submission.test.mjs"
   }
 }
