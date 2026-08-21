@@ -12,7 +12,7 @@ function normalizeDigest(digest) {
 
 export function submissionCaseId(digest) {
   const normalized = normalizeDigest(digest);
-  return `NST-${normalized.slice(0, 12)}`;
+  return `NST-${normalized.slice(0, 16)}`;
 }
 
 export function buildSubmissionNote(digest) {
