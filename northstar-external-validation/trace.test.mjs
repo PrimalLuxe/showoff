@@ -124,3 +124,8 @@ test('privacy page policy blocks outbound network connections during trace prepa
   assert.match(html, /default-src 'self'/);
   assert.match(html, /name="referrer" content="no-referrer"/);
 });
+
+test('hidden controls remain hidden even when button display styles are applied', async () => {
+  const css = await readFile(new URL('./styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\[hidden\]\{display:none!important\}/);
+});
