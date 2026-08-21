@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Submit a sanitized, previously solved RAG/citation/evidence failure for blind diagnosis by NORTHSTAR." />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
   <title>NORTHSTAR — Blind Trace Validation</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -58,7 +60,7 @@
     <section id="submit" class="section wrap" aria-labelledby="submit-title">
       <p class="eyebrow">TRACE BUILDER</p>
       <h2 id="submit-title">Create a leak-resistant <code>northstar_trace.json</code>.</h2>
-      <p class="section-intro">This builder runs locally in your browser. It rejects common ground-truth fields, credential patterns, email addresses, and US SSN patterns before export. These checks are intentionally conservative and cannot replace human review.</p>
+      <p class="section-intro">This builder runs locally in your browser. Its Content Security Policy blocks network connections while you prepare the trace. It rejects common ground-truth fields, credential patterns, email addresses, and US SSN patterns before export. These checks are intentionally conservative and cannot replace human review.</p>
 
       <form id="trace-form" novalidate>
         <div class="form-grid">
