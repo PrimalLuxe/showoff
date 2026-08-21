@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Submit a sanitized, previously solved RAG/citation/evidence failure for blind diagnosis by NORTHSTAR." />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
+  <title>NORTHSTAR — Blind Trace Validation</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top" aria-label="NORTHSTAR home">NORTHSTAR</a>
+      <nav aria-label="Primary">
+        <a href="#how">How it works</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#submit">Submit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="top" class="hero wrap">
+      <p class="eyebrow">EXTERNAL BLIND VALIDATION</p>
+      <h1>Give NORTHSTAR one failure you already solved. Keep the answer hidden.</h1>
+      <p class="lede">Submit a sanitized RAG, citation, retrieval, provenance, or evidence failure. NORTHSTAR receives the trace without the known root cause, predicts where the failure originated, and returns evidence for comparison afterward.</p>
+      <div class="cta-row">
+        <a class="button primary" href="#submit">Build a sanitized trace</a>
+        <a class="button secondary" href="./northstar_trace.schema.json" download>Download trace schema</a>
+      </div>
+      <p class="trust-line">No account. No migration. No confidential data required. Do not include the fix, root cause, credentials, secrets, personal identifiers, or private customer content.</p>
+    </section>
+
+    <section id="how" class="section wrap" aria-labelledby="how-title">
+      <p class="eyebrow">PROTOCOL</p>
+      <h2 id="how-title">A small experiment, not a sales process.</h2>
+      <ol class="steps">
+        <li><span>01</span><div><h3>Sanitize</h3><p>Keep pipeline structure, stage transitions, provenance IDs, ordering, mappings, metadata, and observable evidence. Replace sensitive content with placeholders or hashes.</p></div></li>
+        <li><span>02</span><div><h3>Hide ground truth</h3><p>Do not include the known cause, final fix, incident resolution, remediation, workaround, diagnosis, or postmortem conclusion. That information must stay unavailable until the prediction is sealed.</p></div></li>
+        <li><span>03</span><div><h3>Seal the artifact</h3><p>The builder calculates a SHA-256 digest of the exact sanitized export. Keep that digest with the trace so the blind prediction can be tied to the same artifact without changing it later.</p></div></li>
+        <li><span>04</span><div><h3>Validate blind</h3><p>NORTHSTAR predicts the originating and contributing causes, confidence, supporting evidence, and—when possible—a reduced reproducer and counterfactual repair.</p></div></li>
+      </ol>
+    </section>
+
+    <section id="privacy" class="section wrap split" aria-labelledby="privacy-title">
+      <div>
+        <p class="eyebrow">PRIVACY FIRST</p>
+        <h2 id="privacy-title">Preserve causal structure, not sensitive content.</h2>
+        <p>Use placeholders, public sample text, hashes, redacted chunks, synthetic equivalents, or IDs. NORTHSTAR only needs enough structure to reason about the failure path.</p>
+      </div>
+      <div class="privacy-grid">
+        <article><h3>Keep</h3><p>Stage names, timestamps, retrieval ranks, score changes, source IDs, citation mappings, model outputs when safe, and observable symptoms.</p></article>
+        <article><h3>Remove</h3><p>API keys, auth tokens, email addresses, personal data, confidential documents, proprietary source text, customer identifiers, passwords, known diagnosis, root cause, remediation, and fix details.</p></article>
+      </div>
+    </section>
+
+    <section id="submit" class="section wrap" aria-labelledby="submit-title">
+      <p class="eyebrow">TRACE BUILDER</p>
+      <h2 id="submit-title">Create a leak-resistant <code>northstar_trace.json</code>.</h2>
+      <p class="section-intro">This builder runs locally in your browser. Its Content Security Policy blocks network connections while you prepare the trace. It rejects common ground-truth fields, credential patterns, email addresses, and US SSN patterns before export. These checks are intentionally conservative and cannot replace human review.</p>
+
+      <form id="trace-form" novalidate>
+        <div class="form-grid">
+          <label>Project or system label
+            <input name="project_label" maxlength="120" autocomplete="off" placeholder="e.g. retrieval-service-prod" required />
+          </label>
+          <label>Failure category
+            <select name="failure_category" required>
+              <option value="">Select one</option>
+              <option>citation</option>
+              <option>retrieval</option>
+              <option>reranking</option>
+              <option>provenance</option>
+              <option>grounded_generation</option>
+              <option>agent_evidence</option>
+              <option>other</option>
+            </select>
+          </label>
+        </div>
+
+        <label>Observed symptom
+          <textarea name="observed_symptom" rows="4" maxlength="3000" placeholder="What failed from the system/user point of view? Do not reveal why." required></textarea>
+        </label>
+
+        <label>Sanitized trace events (JSON array)
+          <textarea id="events" name="events" rows="12" spellcheck="false" placeholder='[{"stage":"retrieve","ts":"2026-08-20T12:00:00Z","source_id":"doc_17","rank":1,"score":0.82}]' required></textarea>
+        </label>
+        <p class="hint">Maximum export size: 64 KB. Keys that appear to reveal cause, diagnosis, remediation, fixes, credentials, or secrets are blocked. The builder also rejects several common secret and personal-identifier patterns.</p>
+
+        <fieldset>
+          <legend>Consent and provenance</legend>
+          <label class="check"><input type="checkbox" name="permission" required /> I have permission to share this sanitized failure trace.</label>
+          <label class="check"><input type="checkbox" name="no_ground_truth" required /> I confirm the known diagnosis, root cause, fix, remediation, and resolution are not included.</label>
+          <label class="check"><input type="checkbox" name="sanitized" required /> I reviewed the trace and removed secrets, credentials, personal identifiers, and unnecessary confidential content.</label>
+        </fieldset>
+
+        <div id="form-error" class="status error" role="alert" hidden></div>
+        <div id="form-success" class="status success" role="status" hidden></div>
+
+        <div class="cta-row">
+          <button class="button primary" type="submit">Validate, seal, and prepare trace</button>
+          <button class="button secondary" id="reset-btn" type="reset">Clear locally</button>
+        </div>
+      </form>
+
+      <section id="export-panel" class="export-panel" aria-labelledby="export-title" hidden>
+        <div class="export-head">
+          <div>
+            <p class="eyebrow">READY TO REVIEW</p>
+            <h3 id="export-title">Sanitized export</h3>
+          </div>
+          <span id="export-size" class="size-badge" aria-live="polite"></span>
+        </div>
+        <textarea id="export-json" rows="18" readonly aria-label="Generated sanitized trace JSON"></textarea>
+
+        <label for="trace-digest">Exact-artifact SHA-256 digest
+          <input id="trace-digest" type="text" readonly spellcheck="false" aria-describedby="digest-help" />
+        </label>
+        <p id="digest-help" class="hint">Send this digest alongside the sanitized trace. It fingerprints the exact export used for the blind run; changing even one byte produces a different digest.</p>
+
+        <div class="cta-row">
+          <button id="download-btn" class="button primary" type="button">Download northstar_trace.json</button>
+          <button id="share-btn" class="button primary" type="button" hidden>Share trace file</button>
+          <button id="copy-btn" class="button secondary" type="button">Copy JSON</button>
+          <button id="copy-digest-btn" class="button secondary" type="button">Copy SHA-256 digest</button>
+        </div>
+
+        <div class="submission-handoff" aria-labelledby="handoff-title">
+          <p class="eyebrow">BLIND HANDOFF</p>
+          <h3 id="handoff-title">Send the artifact without sending the answer.</h3>
+          <p>Use this prepared note with the exact sanitized file. It carries the artifact digest and explicitly keeps the known diagnosis separate. The email action opens your own mail client; this page does not upload the trace.</p>
+          <label for="submission-note">Prepared submission note
+            <textarea id="submission-note" rows="8" readonly aria-describedby="submission-help"></textarea>
+          </label>
+          <p id="submission-help" class="hint">Attach the downloaded <code>northstar_trace.json</code> before sending. Do not paste or attach the known root cause, remediation, workaround, postmortem conclusion, or final fix in the same message.</p>
+          <div class="cta-row">
+            <button id="copy-submission-btn" class="button secondary" type="button">Copy submission note</button>
+            <a id="email-submission-link" class="button primary" aria-disabled="true">Prepare submission email</a>
+          </div>
+        </div>
+
+        <p class="hint">On devices that support file sharing, “Share trace file” opens the system share sheet without uploading from this page. Otherwise download the JSON and use the prepared submission note. Keep the ground truth separate until NORTHSTAR's prediction has been sealed.</p>
+      </section>
+    </section>
+
+    <section class="section wrap contact" aria-labelledby="contact-title">
+      <p class="eyebrow">FALLBACK</p>
+      <h2 id="contact-title">Need a different trace format?</h2>
+      <p>If your system cannot export this structure, send a redacted structural trace, public reproduction, or a short description plus enough pipeline artifacts to test blind. Keep the known diagnosis separate until scoring is complete.</p>
+      <a class="button secondary" href="mailto:olympustuber@gmail.com?subject=NORTHSTAR%20blind%20trace%20validation">Contact NORTHSTAR</a>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <p>NORTHSTAR external validation. Internal benchmark results are not presented as real-world accuracy.</p>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

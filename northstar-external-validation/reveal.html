@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Reveal ground truth for a NORTHSTAR blind trace only after the sealed prediction has been returned." />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
+  <title>NORTHSTAR — Ground-Truth Reveal</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="./index.html" aria-label="NORTHSTAR blind trace intake">NORTHSTAR</a>
+      <nav aria-label="Primary"><a href="./index.html">Blind intake</a></nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap">
+      <p class="eyebrow">POST-PREDICTION ONLY</p>
+      <h1>Reveal the known answer only after NORTHSTAR's prediction is sealed.</h1>
+      <p class="lede">This page binds the real resolution and usefulness feedback to the same case identifier and SHA-256 trace digest used for the blind run. It runs locally and does not upload your data.</p>
+      <p class="trust-line">If you have not yet received NORTHSTAR's sealed prediction for this exact case, stop here and keep the answer hidden.</p>
+    </section>
+
+    <section class="section wrap" aria-labelledby="reveal-title">
+      <p class="eyebrow">GROUND-TRUTH RECORD</p>
+      <h2 id="reveal-title">Score one blind case without contaminating it.</h2>
+      <form id="reveal-form" novalidate>
+        <fieldset>
+          <legend>Blind-integrity gate</legend>
+          <label class="check"><input type="checkbox" name="prediction_received" required /> I have already received NORTHSTAR's sealed prediction for this exact case.</label>
+          <label class="check"><input type="checkbox" name="sanitized" required /> I reviewed this reveal and removed secrets, credentials, personal identifiers, and unnecessary confidential content.</label>
+        </fieldset>
+
+        <div class="form-grid">
+          <label>Case identifier<input name="case_id" maxlength="20" autocomplete="off" placeholder="NST-0123456789abcdef" required /></label>
+          <label>Trace SHA-256 digest<input name="digest" maxlength="71" autocomplete="off" spellcheck="false" placeholder="sha256:..." required /></label>
+        </div>
+
+        <label>Actual originating cause<textarea name="originating_cause" rows="5" maxlength="3000" placeholder="State the known originating cause after sanitization." required></textarea></label>
+        <label>Actual contributing causes (optional, one per line)<textarea name="contributing_causes" rows="4" placeholder="One contributing cause per line; maximum 20."></textarea></label>
+
+        <div class="form-grid">
+          <label>How did the sealed prediction compare?<select name="correctness" required><option value="">Select one</option><option value="correct">Correct</option><option value="partial">Partially correct</option><option value="incorrect">Incorrect</option><option value="abstained">Abstained</option></select></label>
+          <label>Was the output materially useful?<select name="useful" required><option value="">Select one</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        </div>
+
+        <div class="form-grid">
+          <label>Approximate debugging minutes saved (optional)<input name="minutes_saved" type="number" min="0" max="10080" step="1" inputmode="numeric" /></label>
+          <label>Would you use NORTHSTAR again?<select name="would_use_again" required><option value="">Select one</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        </div>
+
+        <label>Notes (optional)<textarea name="notes" rows="4" maxlength="3000" placeholder="What evidence, reproducer, or repair information helped or failed to help?"></textarea></label>
+
+        <div id="reveal-error" class="status error" role="alert" hidden></div>
+        <div id="reveal-success" class="status success" role="status" hidden></div>
+        <div class="cta-row"><button class="button primary" type="submit">Validate ground truth record</button><button class="button secondary" type="reset">Clear locally</button></div>
+      </form>
+
+      <section id="reveal-output-panel" class="export-panel" aria-labelledby="reveal-output-title" hidden>
+        <p class="eyebrow">READY TO REVEAL</p>
+        <h3 id="reveal-output-title">Digest-bound result record</h3>
+        <textarea id="reveal-output" rows="18" readonly aria-label="Generated ground-truth record JSON"></textarea>
+        <p class="hint">Verify the case identifier and digest match the blind submission before sending. This record is intentionally separate from the original trace.</p>
+        <div class="cta-row">
+          <button id="download-reveal-btn" class="button primary" type="button">Download northstar_ground_truth.json</button>
+          <button id="copy-reveal-btn" class="button secondary" type="button">Copy result JSON</button>
+          <a id="email-reveal-link" class="button primary" aria-disabled="true">Prepare reveal email</a>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="wrap footer"><p>NORTHSTAR external validation. Ground truth must remain unavailable until the blind prediction is sealed.</p></footer>
+  <script type="module" src="./reveal-page.js"></script>
+</body>
+</html>
