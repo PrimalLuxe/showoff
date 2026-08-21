@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { MAX_BYTES, MAX_DEPTH, buildTrace, hashTrace, parseEvents, validateFinalTrace } from './trace.js';
 
 test('accepts a sanitized event array', () => {
@@ -114,4 +115,12 @@ test('SHA-256 sealing is deterministic and sensitive to byte changes', async () 
     'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
   );
   assert.notEqual(await hashTrace('abc'), await hashTrace('abc\n'));
+});
+
+test('privacy page policy blocks outbound network connections during trace preparation', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  assert.match(html, /Content-Security-Policy/);
+  assert.match(html, /connect-src 'none'/);
+  assert.match(html, /default-src 'self'/);
+  assert.match(html, /name="referrer" content="no-referrer"/);
 });
