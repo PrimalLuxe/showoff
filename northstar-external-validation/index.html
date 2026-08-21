@@ -29,7 +29,7 @@
         <a class="button primary" href="#submit">Build a sanitized trace</a>
         <a class="button secondary" href="./northstar_trace.schema.json" download>Download trace schema</a>
       </div>
-      <p class="trust-line">No account. No migration. No confidential data required. Do not include the fix, root cause, credentials, secrets, or private customer content.</p>
+      <p class="trust-line">No account. No migration. No confidential data required. Do not include the fix, root cause, credentials, secrets, personal identifiers, or private customer content.</p>
     </section>
 
     <section id="how" class="section wrap" aria-labelledby="how-title">
@@ -37,8 +37,9 @@
       <h2 id="how-title">A small experiment, not a sales process.</h2>
       <ol class="steps">
         <li><span>01</span><div><h3>Sanitize</h3><p>Keep pipeline structure, stage transitions, provenance IDs, ordering, mappings, metadata, and observable evidence. Replace sensitive content with placeholders or hashes.</p></div></li>
-        <li><span>02</span><div><h3>Hide ground truth</h3><p>Do not include the known cause, final fix, incident resolution, or postmortem conclusion. That information must stay unavailable until the prediction is sealed.</p></div></li>
-        <li><span>03</span><div><h3>Validate blind</h3><p>NORTHSTAR predicts the originating and contributing causes, confidence, supporting evidence, and—when possible—a reduced reproducer and counterfactual repair.</p></div></li>
+        <li><span>02</span><div><h3>Hide ground truth</h3><p>Do not include the known cause, final fix, incident resolution, remediation, workaround, diagnosis, or postmortem conclusion. That information must stay unavailable until the prediction is sealed.</p></div></li>
+        <li><span>03</span><div><h3>Seal the artifact</h3><p>The builder calculates a SHA-256 digest of the exact sanitized export. Keep that digest with the trace so the blind prediction can be tied to the same artifact without changing it later.</p></div></li>
+        <li><span>04</span><div><h3>Validate blind</h3><p>NORTHSTAR predicts the originating and contributing causes, confidence, supporting evidence, and—when possible—a reduced reproducer and counterfactual repair.</p></div></li>
       </ol>
     </section>
 
@@ -50,14 +51,14 @@
       </div>
       <div class="privacy-grid">
         <article><h3>Keep</h3><p>Stage names, timestamps, retrieval ranks, score changes, source IDs, citation mappings, model outputs when safe, and observable symptoms.</p></article>
-        <article><h3>Remove</h3><p>API keys, auth tokens, personal data, confidential documents, proprietary source text, customer identifiers, passwords, known root cause, and fix details.</p></article>
+        <article><h3>Remove</h3><p>API keys, auth tokens, email addresses, personal data, confidential documents, proprietary source text, customer identifiers, passwords, known diagnosis, root cause, remediation, and fix details.</p></article>
       </div>
     </section>
 
     <section id="submit" class="section wrap" aria-labelledby="submit-title">
       <p class="eyebrow">TRACE BUILDER</p>
       <h2 id="submit-title">Create a leak-resistant <code>northstar_trace.json</code>.</h2>
-      <p class="section-intro">This builder runs locally in your browser. It rejects common ground-truth fields before export. Review the generated JSON before sharing it.</p>
+      <p class="section-intro">This builder runs locally in your browser. It rejects common ground-truth fields, credential patterns, email addresses, and US SSN patterns before export. These checks are intentionally conservative and cannot replace human review.</p>
 
       <form id="trace-form" novalidate>
         <div class="form-grid">
@@ -85,20 +86,20 @@
         <label>Sanitized trace events (JSON array)
           <textarea id="events" name="events" rows="12" spellcheck="false" placeholder='[{"stage":"retrieve","ts":"2026-08-20T12:00:00Z","source_id":"doc_17","rank":1,"score":0.82}]' required></textarea>
         </label>
-        <p class="hint">Maximum export size: 64 KB. Keys containing terms such as <code>root_cause</code>, <code>resolution</code>, <code>fix</code>, <code>password</code>, <code>secret</code>, <code>token</code>, or <code>api_key</code> are blocked.</p>
+        <p class="hint">Maximum export size: 64 KB. Keys that appear to reveal cause, diagnosis, remediation, fixes, credentials, or secrets are blocked. The builder also rejects several common secret and personal-identifier patterns.</p>
 
         <fieldset>
           <legend>Consent and provenance</legend>
           <label class="check"><input type="checkbox" name="permission" required /> I have permission to share this sanitized failure trace.</label>
-          <label class="check"><input type="checkbox" name="no_ground_truth" required /> I confirm the known root cause, fix, and resolution are not included.</label>
-          <label class="check"><input type="checkbox" name="sanitized" required /> I reviewed the trace and removed secrets, credentials, and unnecessary personal/confidential content.</label>
+          <label class="check"><input type="checkbox" name="no_ground_truth" required /> I confirm the known diagnosis, root cause, fix, remediation, and resolution are not included.</label>
+          <label class="check"><input type="checkbox" name="sanitized" required /> I reviewed the trace and removed secrets, credentials, personal identifiers, and unnecessary confidential content.</label>
         </fieldset>
 
         <div id="form-error" class="status error" role="alert" hidden></div>
         <div id="form-success" class="status success" role="status" hidden></div>
 
         <div class="cta-row">
-          <button class="button primary" type="submit">Validate and prepare trace</button>
+          <button class="button primary" type="submit">Validate, seal, and prepare trace</button>
           <button class="button secondary" id="reset-btn" type="reset">Clear locally</button>
         </div>
       </form>
@@ -112,11 +113,18 @@
           <span id="export-size" class="size-badge" aria-live="polite"></span>
         </div>
         <textarea id="export-json" rows="18" readonly aria-label="Generated sanitized trace JSON"></textarea>
+
+        <label for="trace-digest">Exact-artifact SHA-256 digest
+          <input id="trace-digest" type="text" readonly spellcheck="false" aria-describedby="digest-help" />
+        </label>
+        <p id="digest-help" class="hint">Send this digest alongside the sanitized trace. It fingerprints the exact export used for the blind run; changing even one byte produces a different digest.</p>
+
         <div class="cta-row">
           <button id="download-btn" class="button primary" type="button">Download northstar_trace.json</button>
           <button id="copy-btn" class="button secondary" type="button">Copy JSON</button>
+          <button id="copy-digest-btn" class="button secondary" type="button">Copy SHA-256 digest</button>
         </div>
-        <p class="hint">Final sharing remains deliberate: inspect the file, then send it through the contact route provided to you. Do not append the known answer in the same message.</p>
+        <p class="hint">Final sharing remains deliberate: inspect the file, then send it through the contact route provided to you. Do not append the known answer in the same message. Keep the ground truth separate until NORTHSTAR's prediction has been sealed.</p>
       </section>
     </section>
 
