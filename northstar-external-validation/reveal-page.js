@@ -6,6 +6,7 @@ const errorBox = document.querySelector('#reveal-error');
 const successBox = document.querySelector('#reveal-success');
 const panel = document.querySelector('#reveal-output-panel');
 const output = document.querySelector('#reveal-output');
+const downloadButton = document.querySelector('#download-reveal-btn');
 const copyButton = document.querySelector('#copy-reveal-btn');
 const emailLink = document.querySelector('#email-reveal-link');
 
@@ -14,8 +15,8 @@ let lastEncoded = '';
 function setStatus(type, message) {
   errorBox.hidden = type !== 'error';
   successBox.hidden = type !== 'success';
-  if (type === 'error') errorBox.textContent = message;
-  if (type === 'success') successBox.textContent = message;
+  errorBox.textContent = type === 'error' ? message : '';
+  successBox.textContent = type === 'success' ? message : '';
 }
 
 function clearOutput() {
@@ -41,6 +42,7 @@ form.addEventListener('submit', (event) => {
       caseId: String(data.get('case_id') || ''),
       digest: String(data.get('digest') || ''),
       sealedPredictionReceived: data.get('prediction_received') === 'on',
+      sanitizedBySubmitter: data.get('sanitized') === 'on',
       originatingCause: String(data.get('originating_cause') || ''),
       contributingCauses: String(data.get('contributing_causes') || ''),
       correctness: String(data.get('correctness') || ''),
@@ -66,11 +68,21 @@ form.addEventListener('submit', (event) => {
 });
 
 form.addEventListener('reset', () => {
-  errorBox.hidden = true;
-  successBox.hidden = true;
-  errorBox.textContent = '';
-  successBox.textContent = '';
+  setStatus('', '');
   clearOutput();
+});
+
+downloadButton.addEventListener('click', () => {
+  if (!lastEncoded) return;
+  const blob = new Blob([lastEncoded], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'northstar_ground_truth.json';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 });
 
 copyButton.addEventListener('click', async () => {
