@@ -11,6 +11,7 @@ const digestOutput = document.querySelector('#trace-digest');
 const downloadButton = document.querySelector('#download-btn');
 const copyButton = document.querySelector('#copy-btn');
 const copyDigestButton = document.querySelector('#copy-digest-btn');
+const shareButton = document.querySelector('#share-btn');
 
 let lastExport = '';
 let lastDigest = '';
@@ -28,6 +29,22 @@ function clearStatus() {
   successBox.hidden = true;
   errorBox.textContent = '';
   successBox.textContent = '';
+}
+
+function makeTraceFile() {
+  return new File([lastExport], 'northstar_trace.json', { type: 'application/json' });
+}
+
+function refreshShareAvailability() {
+  if (!lastExport || typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') {
+    shareButton.hidden = true;
+    return;
+  }
+  try {
+    shareButton.hidden = !navigator.canShare({ files: [makeTraceFile()] });
+  } catch {
+    shareButton.hidden = true;
+  }
 }
 
 async function copyText(value, button, successLabel) {
@@ -54,6 +71,7 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearStatus();
   panel.hidden = true;
+  shareButton.hidden = true;
 
   if (!form.reportValidity()) return;
 
@@ -79,6 +97,7 @@ form.addEventListener('submit', async (event) => {
     digestOutput.value = `sha256:${digest}`;
     sizeBadge.textContent = `${(result.bytes / 1024).toFixed(1)} KB`;
     panel.hidden = false;
+    refreshShareAvailability();
     setStatus('success', 'Trace passed local leakage and size checks and was SHA-256 sealed. Review the export before sharing.');
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
@@ -87,6 +106,7 @@ form.addEventListener('submit', async (event) => {
       lastDigest = '';
       output.value = '';
       digestOutput.value = '';
+      shareButton.hidden = true;
       setStatus('error', error instanceof Error ? error.message : 'Unable to validate trace.');
     }
   } finally {
@@ -106,6 +126,7 @@ form.addEventListener('reset', () => {
   lastExport = '';
   lastDigest = '';
   sizeBadge.textContent = '';
+  shareButton.hidden = true;
   submitButton.disabled = false;
   submitButton.removeAttribute('aria-busy');
 });
@@ -125,3 +146,18 @@ downloadButton.addEventListener('click', () => {
 
 copyButton.addEventListener('click', () => copyText(lastExport, copyButton, 'Copied'));
 copyDigestButton.addEventListener('click', () => copyText(`sha256:${lastDigest}`, copyDigestButton, 'Digest copied'));
+
+shareButton.addEventListener('click', async () => {
+  if (!lastExport || !lastDigest) return;
+  try {
+    await navigator.share({
+      title: 'NORTHSTAR blind trace validation',
+      text: `Sanitized trace for blind validation\nsha256:${lastDigest}`,
+      files: [makeTraceFile()],
+    });
+    setStatus('success', 'Trace shared through your device share sheet. Keep the known diagnosis separate until the prediction is sealed.');
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return;
+    setStatus('error', 'The device share sheet could not share this file. Download the JSON and send it through your preferred contact route instead.');
+  }
+});
