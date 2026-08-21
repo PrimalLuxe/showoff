@@ -37,31 +37,32 @@ function byteSize(value) {
 
 function scan(value) {
   const findings = [];
-  const stack = [{ value, path: '$' }];
+  const stack = [{ value, path: '$', trustedMetadata: false }];
 
   while (stack.length) {
     const current = stack.pop();
     if (!current) break;
-    const { value: node, path } = current;
+    const { value: node, path, trustedMetadata } = current;
 
     if (Array.isArray(node)) {
       for (let index = node.length - 1; index >= 0; index -= 1) {
-        stack.push({ value: node[index], path: `${path}[${index}]` });
+        stack.push({ value: node[index], path: `${path}[${index}]`, trustedMetadata: false });
       }
       continue;
     }
 
     if (node && typeof node === 'object') {
       for (const [key, child] of Object.entries(node)) {
-        if (!SAFE_METADATA_KEYS.has(key) && BLOCKED_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
+        const isTrustedMetadata = path === '$.provenance' && SAFE_METADATA_KEYS.has(key);
+        if (!isTrustedMetadata && BLOCKED_KEY_PATTERNS.some((pattern) => pattern.test(key))) {
           findings.push(`${path}.${key}`);
         }
-        stack.push({ value: child, path: `${path}.${key}` });
+        stack.push({ value: child, path: `${path}.${key}`, trustedMetadata: isTrustedMetadata });
       }
       continue;
     }
 
-    if (typeof node === 'string' && BLOCKED_VALUE_PATTERNS.some((pattern) => pattern.test(node))) {
+    if (!trustedMetadata && typeof node === 'string' && BLOCKED_VALUE_PATTERNS.some((pattern) => pattern.test(node))) {
       findings.push(path);
     }
   }
