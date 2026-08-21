@@ -13,6 +13,14 @@ const FAILURE_CATEGORIES = new Set([
   'other',
 ]);
 
+const TOP_LEVEL_KEYS = new Set(['schema_version', 'provenance', 'observed_symptom', 'trace_events']);
+const PROVENANCE_KEYS = new Set([
+  'project_label',
+  'failure_category',
+  'known_resolution_withheld',
+  'sanitized_by_submitter',
+]);
+
 const BLOCKED_KEY_PATTERNS = [
   /root[_-]?cause/i,
   /(?:^|[_-])cause(?:$|[_-])/i,
@@ -62,6 +70,24 @@ const BLOCKED_VALUE_PATTERNS = [
 
 function byteSize(value) {
   return new TextEncoder().encode(value).byteLength;
+}
+
+function assertPlainObject(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+}
+
+function assertExactKeys(value, allowedKeys, label) {
+  const keys = Object.keys(value);
+  const unexpected = keys.filter((key) => !allowedKeys.has(key));
+  if (unexpected.length) {
+    throw new Error(`${label} contains unsupported field${unexpected.length > 1 ? 's' : ''}: ${unexpected.slice(0, 5).join(', ')}${unexpected.length > 5 ? '…' : ''}`);
+  }
+  const missing = [...allowedKeys].filter((key) => !Object.prototype.hasOwnProperty.call(value, key));
+  if (missing.length) {
+    throw new Error(`${label} is missing required field${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`);
+  }
 }
 
 function scan(value) {
@@ -127,6 +153,7 @@ export function parseEvents(raw) {
   if (!Array.isArray(parsed)) throw new Error('Trace events must be a JSON array.');
   if (parsed.length === 0) throw new Error('Include at least one sanitized trace event.');
   if (parsed.length > MAX_EVENTS) throw new Error(`Trace contains too many events; reduce it to ${MAX_EVENTS.toLocaleString()} events or fewer.`);
+  for (const event of parsed) assertPlainObject(event, 'Each trace event');
   assertNoProhibitedData(parsed, 'Potential ground truth, personal data, or secret detected at');
   return parsed;
 }
@@ -141,6 +168,7 @@ export function buildTrace({ projectLabel, failureCategory, observedSymptom, eve
   if (symptom.length > 3000) throw new Error('Observed symptom is too long.');
   if (!Array.isArray(events) || events.length === 0) throw new Error('Include at least one sanitized trace event.');
   if (events.length > MAX_EVENTS) throw new Error(`Trace contains too many events; reduce it to ${MAX_EVENTS.toLocaleString()} events or fewer.`);
+  for (const event of events) assertPlainObject(event, 'Each trace event');
 
   assertNoProhibitedData({ project_label: label, observed_symptom: symptom, trace_events: events }, 'Potential ground truth, personal data, or secret detected outside trace events at');
 
@@ -162,14 +190,24 @@ export function buildTrace({ projectLabel, failureCategory, observedSymptom, eve
 }
 
 export function validateFinalTrace(trace) {
-  if (!trace || typeof trace !== 'object' || Array.isArray(trace)) throw new Error('Trace must be a JSON object.');
+  assertPlainObject(trace, 'Trace');
+  assertExactKeys(trace, TOP_LEVEL_KEYS, 'Trace');
   if (trace.schema_version !== '1.0') throw new Error('Unsupported trace schema version.');
-  if (!trace.provenance || typeof trace.provenance !== 'object') throw new Error('Trace provenance is required.');
+
+  assertPlainObject(trace.provenance, 'Trace provenance');
+  assertExactKeys(trace.provenance, PROVENANCE_KEYS, 'Trace provenance');
+  if (typeof trace.provenance.project_label !== 'string' || !trace.provenance.project_label.trim()) throw new Error('Project or system label is required.');
+  if (trace.provenance.project_label.length > 120) throw new Error('Project or system label is too long.');
+  if (!FAILURE_CATEGORIES.has(trace.provenance.failure_category)) throw new Error('Failure category is invalid.');
   if (trace.provenance.known_resolution_withheld !== true) throw new Error('Known resolution must remain withheld for blind validation.');
   if (trace.provenance.sanitized_by_submitter !== true) throw new Error('Trace must be marked sanitized by the submitter.');
-  if (!FAILURE_CATEGORIES.has(trace.provenance.failure_category)) throw new Error('Failure category is invalid.');
+
+  if (typeof trace.observed_symptom !== 'string' || !trace.observed_symptom.trim()) throw new Error('Observed symptom is required.');
+  if (trace.observed_symptom.length > 3000) throw new Error('Observed symptom is too long.');
   if (!Array.isArray(trace.trace_events) || trace.trace_events.length === 0) throw new Error('Trace events are required.');
   if (trace.trace_events.length > MAX_EVENTS) throw new Error(`Trace contains too many events; reduce it to ${MAX_EVENTS.toLocaleString()} events or fewer.`);
+  for (const event of trace.trace_events) assertPlainObject(event, 'Each trace event');
+
   assertNoProhibitedData(trace, 'Potential prohibited data detected at');
   const encoded = JSON.stringify(trace);
   if (byteSize(encoded) > MAX_BYTES) throw new Error('Trace exceeds the 64 KB limit.');
