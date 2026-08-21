@@ -25,9 +25,9 @@ function normalizeDigest(digest) {
 }
 
 function normalizeCaseId(caseId) {
-  const value = String(caseId || '').trim().toUpperCase();
+  const value = String(caseId || '').trim();
   if (!CASE_PATTERN.test(value)) throw new Error('A valid NORTHSTAR case identifier is required.');
-  return value;
+  return `NST-${value.slice(4).toLowerCase()}`;
 }
 
 function assertSanitizedText(text, label) {
@@ -45,9 +45,7 @@ function boundedText(value, label, maxLength, required = false) {
 }
 
 function normalizeContributingCauses(value) {
-  const values = Array.isArray(value)
-    ? value
-    : String(value || '').split('\n');
+  const values = Array.isArray(value) ? value : String(value || '').split('\n');
   const causes = values.map((item) => String(item || '').trim()).filter(Boolean);
   if (causes.length > MAX_CONTRIBUTING_CAUSES) throw new Error(`Contributing causes are limited to ${MAX_CONTRIBUTING_CAUSES}.`);
   return causes.map((cause) => boundedText(cause, 'Each contributing cause', 1000, true));
@@ -62,32 +60,14 @@ function normalizeMinutesSaved(value) {
   return minutes;
 }
 
-export function buildGroundTruthRecord({
-  caseId,
-  digest,
-  sealedPredictionReceived,
-  sanitizedBySubmitter,
-  originatingCause,
-  contributingCauses,
-  correctness,
-  useful,
-  minutesSaved,
-  wouldUseAgain,
-  notes,
-}) {
-  if (sealedPredictionReceived !== true) {
-    throw new Error('Do not reveal ground truth until NORTHSTAR has returned a sealed prediction for this case.');
-  }
-  if (sanitizedBySubmitter !== true) {
-    throw new Error('Confirm the ground-truth reveal has been sanitized before sharing it.');
-  }
+export function buildGroundTruthRecord({ caseId, digest, sealedPredictionReceived, sanitizedBySubmitter, originatingCause, contributingCauses, correctness, useful, minutesSaved, wouldUseAgain, notes }) {
+  if (sealedPredictionReceived !== true) throw new Error('Do not reveal ground truth until NORTHSTAR has returned a sealed prediction for this case.');
+  if (sanitizedBySubmitter !== true) throw new Error('Confirm the ground-truth reveal has been sanitized before sharing it.');
 
   const normalizedDigest = normalizeDigest(digest);
   const normalizedCaseId = normalizeCaseId(caseId);
   const expectedCaseId = submissionCaseId(normalizedDigest);
-  if (normalizedCaseId !== expectedCaseId) {
-    throw new Error(`Case identifier does not match the supplied trace digest. Expected ${expectedCaseId}.`);
-  }
+  if (normalizedCaseId !== expectedCaseId) throw new Error(`Case identifier does not match the supplied trace digest. Expected ${expectedCaseId}.`);
 
   const allowedCorrectness = new Set(['correct', 'partial', 'incorrect', 'abstained']);
   const allowedBoolean = new Set(['yes', 'no']);
@@ -113,9 +93,7 @@ export function buildGroundTruthRecord({
 
 export function encodeGroundTruthRecord(record) {
   const encoded = JSON.stringify(record, null, 2);
-  if (new TextEncoder().encode(encoded).byteLength > 16 * 1024) {
-    throw new Error('Ground-truth reveal exceeds the 16 KB safety limit. Shorten the text before sharing.');
-  }
+  if (new TextEncoder().encode(encoded).byteLength > 16 * 1024) throw new Error('Ground-truth reveal exceeds the 16 KB safety limit. Shorten the text before sharing.');
   return encoded;
 }
 
