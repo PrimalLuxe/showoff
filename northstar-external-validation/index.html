@@ -127,7 +127,22 @@
           <button id="copy-btn" class="button secondary" type="button">Copy JSON</button>
           <button id="copy-digest-btn" class="button secondary" type="button">Copy SHA-256 digest</button>
         </div>
-        <p class="hint">On devices that support file sharing, “Share trace file” opens the system share sheet without uploading from this page. Otherwise download the JSON and send it through your preferred contact route. Do not append the known answer in the same message. Keep the ground truth separate until NORTHSTAR's prediction has been sealed.</p>
+
+        <div class="submission-handoff" aria-labelledby="handoff-title">
+          <p class="eyebrow">BLIND HANDOFF</p>
+          <h3 id="handoff-title">Send the artifact without sending the answer.</h3>
+          <p>Use this prepared note with the exact sanitized file. It carries the artifact digest and explicitly keeps the known diagnosis separate. The email action opens your own mail client; this page does not upload the trace.</p>
+          <label for="submission-note">Prepared submission note
+            <textarea id="submission-note" rows="8" readonly aria-describedby="submission-help"></textarea>
+          </label>
+          <p id="submission-help" class="hint">Attach the downloaded <code>northstar_trace.json</code> before sending. Do not paste or attach the known root cause, remediation, workaround, postmortem conclusion, or final fix in the same message.</p>
+          <div class="cta-row">
+            <button id="copy-submission-btn" class="button secondary" type="button">Copy submission note</button>
+            <a id="email-submission-link" class="button primary" aria-disabled="true">Prepare submission email</a>
+          </div>
+        </div>
+
+        <p class="hint">On devices that support file sharing, “Share trace file” opens the system share sheet without uploading from this page. Otherwise download the JSON and use the prepared submission note. Keep the ground truth separate until NORTHSTAR's prediction has been sealed.</p>
       </section>
     </section>
 
