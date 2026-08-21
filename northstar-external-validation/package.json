@@ -1,0 +1,8 @@
+{
+  "name": "northstar-external-validation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test trace.test.mjs"
+  }
+}
